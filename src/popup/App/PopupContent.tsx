@@ -1,9 +1,8 @@
-// PopupContent.tsx
-
 import React, { useEffect, useState } from 'react';
+import cheerio from 'cheerio';
 
 const PopupContent: React.FC = () => {
-  const [htmlContent, setHtmlContent] = useState<string>('');
+  const [socialMediaLinks, setSocialMediaLinks] = useState<string[]>([]);
 
   useEffect(() => {
     chrome.tabs.query({ active: true, currentWindow: true }).then(tabs => {
@@ -16,8 +15,9 @@ const PopupContent: React.FC = () => {
           func: DOMtoString,
         }).then(results => {
           const htmlResult = results[0]?.result ?? '';
-          setHtmlContent(htmlResult);
-        }).catch(error => {
+          const contacts = extractSocialMediaLinks(htmlResult);
+          setSocialMediaLinks(contacts);
+        }).catch(error => {  
           console.error('Error injecting script:', error);
         });
       }
@@ -34,10 +34,24 @@ const PopupContent: React.FC = () => {
     }
   }
 
+  function extractSocialMediaLinks(htmlContent: string) {
+    const $ = cheerio.load(htmlContent);
+    const contacts: string[] = [];
+    $('a[href*=linkedin], a[href*=facebook], a[href*=twitter], a[href*=youtube]').each(function () {
+      const link = $(this).attr('href') || ''; // Ensure link is always a string
+      contacts.push(link);
+    });
+    return contacts;
+  }
+
   return (
     <div>
-      <h1>Page Source</h1>
-      <pre>{htmlContent}</pre>
+      <h1>Social Media Links</h1>
+      <ul>
+        {socialMediaLinks.map((link, index) => (
+          <li key={index}><a href={link} target="_blank" rel="noopener noreferrer">{link}</a></li>
+        ))}
+      </ul>
     </div>
   );
 };
