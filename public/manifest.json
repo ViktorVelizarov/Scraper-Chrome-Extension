@@ -20,5 +20,5 @@
   "action": {
     "default_popup": "index.html"
   },
-  "permissions": ["storage", "tabs", "activeTab"]
+  "permissions": ["storage", "tabs", "activeTab", "scripting"]
 }

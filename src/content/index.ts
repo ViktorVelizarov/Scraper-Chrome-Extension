@@ -1,29 +1,15 @@
-import { runtime } from 'webextension-polyfill'
+// index.ts
 
-console.log('[content] loaded ')
+export {}; // Make the file a module
 
-type Listener = (event: MouseEvent) => void
+// Function to retrieve HTML content and log it to the console
+function logHTMLContent() {
+    // Get the HTML content of the current webpage
+    const htmlContent = document.documentElement.outerHTML;
 
-let count = 0
-
-function registerClickListener(listener: Listener) {
-  window.addEventListener('click', listener)
-
-  // step 2
-  return function cleanup() {
-    window.removeEventListener('click', listener)
-  }
+    // Log the HTML content to the console
+    console.log(htmlContent);
 }
 
-async function countClicks() {
-  count++
-  console.log('click(): ', count)
-  // step 2
-  return runtime.sendMessage({ from: 'content', to: 'background', action: 'click' })
-}
-
-export function init() {
-  registerClickListener(countClicks)
-}
-
-init()
+// Execute the function when the DOM content is loaded
+document.addEventListener('DOMContentLoaded', logHTMLContent);
