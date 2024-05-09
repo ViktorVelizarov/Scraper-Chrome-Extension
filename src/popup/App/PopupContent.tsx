@@ -110,11 +110,12 @@ const PopupContent: React.FC = () => {
   function generateEmailRegex(url: string) {
     // Extract domain from URL
     const domain = url.split('/')[2].replace('www.', '');
-    console.log(domain);
+
+    // Escape special characters in the domain
+    const escapedDomain = domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
     // Construct email regex pattern
-    const emailPattern = new RegExp(`\\b[A-Za-z0-9._%+-]+@${domain}\\b`, 'g');
-    console.log(emailPattern);
+    const emailPattern = new RegExp(`\\b[A-Za-z0-9._%+-]+@${escapedDomain}\\b`, 'g');
     return emailPattern;
   }
 
@@ -146,36 +147,66 @@ const PopupContent: React.FC = () => {
     return contacts;
   }
 
+  function handleSubmit() {
+    // Implement your submission logic here
+    console.log("Submitting data:", { address, email, phoneNumbers, services, socialMediaLinks });
+  }
+
   return (
     <div>
       <h1>Address</h1>
-      <p>{address}</p>
+      <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} />
 
       <h1>Email</h1>
-      <p>{email}</p>
+      <input type="text" value={email} onChange={(e) => setEmail(e.target.value)} />
 
       <h1>Phone Numbers</h1>
       <ul>
         {phoneNumbers.map((phoneNumber, index) => (
-          <li key={index}>{phoneNumber}</li>
+          <li key={index}>
+            <input type="text" value={phoneNumber} onChange={(e) => {
+              const newPhoneNumbers = [...phoneNumbers];
+              newPhoneNumbers[index] = e.target.value;
+              setPhoneNumbers(newPhoneNumbers);
+            }} />
+          </li>
         ))}
+        {phoneNumbers.length === 0 && <input type="text" value={''} onChange={() => {}} />}
       </ul>
 
       <h1>Social Media Links</h1>
       <ul>
         {socialMediaLinks.map((link, index) => (
-          <li key={index}><a href={link} target="_blank" rel="noopener noreferrer">{link}</a></li>
-        ))}
-      </ul>
-
-      <h1>Services</h1>
-      <ul>
-        {services.map((service, index) => (
-          <li key={index}>{service}</li>
-        ))}
-      </ul>
-    </div>
-  );
-};
-
-export default PopupContent;
+          <li key={index}>
+            <input type="text" value={link} onChange={(e) => {
+              const newSocialMediaLinks = [...socialMediaLinks];
+              newSocialMediaLinks[index] = e.target.value;
+              setSocialMediaLinks(newSocialMediaLinks);
+            }}
+            />
+            </li>
+          ))}
+          {socialMediaLinks.length === 0 && <input type="text" value={''} onChange={() => {}} />}
+        </ul>
+  
+        <h1>Services</h1>
+        <ul>
+          {services.map((service, index) => (
+            <li key={index}>
+              <input type="text" value={service} onChange={(e) => {
+                const newServices = [...services];
+                newServices[index] = e.target.value;
+                setServices(newServices);
+              }} />
+            </li>
+          ))}
+          {services.length === 0 && <input type="text" value={''} onChange={() => {}} />}
+        </ul>
+  
+        <button onClick={handleSubmit}>Submit</button>
+      </div>
+    );
+  };
+  
+  export default PopupContent;
+  
