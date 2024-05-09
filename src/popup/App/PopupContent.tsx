@@ -12,15 +12,16 @@ const PopupContent: React.FC = () => {
     chrome.tabs.query({ active: true, currentWindow: true }).then(tabs => {
       const activeTab = tabs[0];
       const activeTabId = activeTab?.id;
+      const activeTabUrl = activeTab?.url;
 
-      if (activeTabId !== undefined) {
+      if (activeTabId !== undefined && activeTabUrl) {
         chrome.scripting.executeScript({
           target: { tabId: activeTabId },
           func: DOMtoString,
         }).then(results => {
           const htmlResult = results[0]?.result ?? '';
 
-          const contactInfo = extractContactInfo(htmlResult);
+          const contactInfo = extractContactInfo(htmlResult, activeTabUrl);
           setAddress(contactInfo.address);
           setEmail(contactInfo.email);
           setPhoneNumbers(contactInfo.phoneNumbers);
@@ -47,7 +48,7 @@ const PopupContent: React.FC = () => {
     }
   }
 
-  function extractContactInfo(htmlContent: string) {
+  function extractContactInfo(htmlContent: string, url: string) {
     const $ = cheerio.load(htmlContent);
     const addressElement = $('address');
 
@@ -81,17 +82,20 @@ const PopupContent: React.FC = () => {
       address = extractedAddress.trim();
     }
 
+    // Generate email regex based on the website URL
+    const emailPattern = generateEmailRegex(url);
+
     // Iterate over all text nodes to search for potential email addresses and phone numbers
     $('*').contents().each((index, element) => {
       if (element.type === 'text') {
         const text = $(element).text();
-        const emailPattern = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
+
         const matches = text.match(emailPattern);
         if (matches) {
           email = matches.join(', '); // Concatenate matches with a comma
         }
 
-        const phonePattern = /(\d{3}[-\.\s]??\d{3}[-\.\s]??\d{4}|\(\d{3}\)\s*\d{3}[-\.\s]??\d{4}|\d{3}[-\.\s]??\d{4})/g;
+        const phonePattern = /\b\d{3}\s\d{3}\s\d{4}\b/g;
         const phoneMatches = text.match(phonePattern);
         if (phoneMatches) {
           phoneNumbers = [...phoneNumbers, ...phoneMatches];
@@ -100,6 +104,18 @@ const PopupContent: React.FC = () => {
     });
 
     return { address, email, phoneNumbers };
+  }
+
+  // Function to generate email regex based on the website URL
+  function generateEmailRegex(url: string) {
+    // Extract domain from URL
+    const domain = url.split('/')[2].replace('www.', '');
+    console.log(domain);
+
+    // Construct email regex pattern
+    const emailPattern = new RegExp(`\\b[A-Za-z0-9._%+-]+@${domain}\\b`, 'g');
+    console.log(emailPattern);
+    return emailPattern;
   }
 
   function extractServices(htmlContent: string) {
