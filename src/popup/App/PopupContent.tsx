@@ -2,47 +2,52 @@ import React, { useEffect, useState } from 'react';
 import cheerio from 'cheerio';
 
 const PopupContent: React.FC = () => {
-  const [address, setAddress] = useState<string>('');
-  const [email, setEmail] = useState<string>('');
-  const [phoneNumbers, setPhoneNumbers] = useState<string[]>([]);
-  const [services, setServices] = useState<string[]>([]);
-  const [socialMediaLinks, setSocialMediaLinks] = useState<string[]>([]);
+  const [scrapedData, setScrapedData] = useState<{
+    address: string;
+    email: string;
+    phoneNumbers: string[];
+    services: string[];
+    socialMediaLinks: string[];
+  }>({
+    address: '',
+    email: '',
+    phoneNumbers: [],
+    services: [],
+    socialMediaLinks: [],
+  });
+  const [showData, setShowData] = useState(false);
 
-  useEffect(() => {
-    chrome.tabs.query({ active: true, currentWindow: true }).then(tabs => {
+  const handleClickScrape = () => {
+    chrome.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
       const activeTab = tabs[0];
       const activeTabId = activeTab?.id;
       const activeTabUrl = activeTab?.url;
 
       if (activeTabId !== undefined && activeTabUrl) {
-        chrome.scripting.executeScript({
-          target: { tabId: activeTabId },
-          func: DOMtoString,
-        }).then(results => {
-          const htmlResult = results[0]?.result ?? '';
+        chrome.scripting
+          .executeScript({
+            target: { tabId: activeTabId },
+            func: DOMtoString,
+          })
+          .then((results) => {
+            const htmlResult = results[0]?.result ?? '';
 
-          const contactInfo = extractContactInfo(htmlResult, activeTabUrl);
-          setAddress(contactInfo.address);
-          setEmail(contactInfo.email);
-          setPhoneNumbers(contactInfo.phoneNumbers);
-
-          const extractedServices = extractServices(htmlResult);
-          setServices(extractedServices);
-
-          const contacts = extractSocialMediaLinks(htmlResult);
-          setSocialMediaLinks(contacts);
-        }).catch(error => {  
-          console.error('Error injecting script:', error);
-        });
+            const contactInfo = extractContactInfo(htmlResult, activeTabUrl);
+            setScrapedData(contactInfo);
+            setShowData(true);
+          })
+          .catch((error) => {
+            console.error('Error injecting script:', error);
+          });
       }
     });
-  }, []);
+  };
 
   function DOMtoString(selector?: string) {
     if (selector) {
       const element = document.querySelector(selector);
       if (element) return element.outerHTML;
-      return "ERROR: querySelector failed to find node";
+      return 'ERROR: querySelector failed to find node';
     } else {
       return document.documentElement.outerHTML;
     }
@@ -55,6 +60,8 @@ const PopupContent: React.FC = () => {
     let address = '';
     let email = '';
     let phoneNumbers: string[] = [];
+    let socialMediaLinks: string[] = [];
+    let services: string[] = [];
 
     // Check if there's any address element found
     if (addressElement.length > 0) {
@@ -64,7 +71,7 @@ const PopupContent: React.FC = () => {
       const addressPatterns = [
         /\b\d+\s+\w+\s+\w+/gi, // Street address pattern (e.g., 123 Main St)
         /\b\w+\s*,\s*\w+\s*\d+/gi, // City, Postal Code pattern (e.g., City, Postal Code)
-        /\b[A-Za-z\s]+,\s*[A-Za-z\s]+/gi // City, Country pattern (e.g., City, Country)
+        /\b[A-Za-z\s]+,\s*[A-Za-z\s]+/gi, // City, Country pattern (e.g., City, Country)
       ];
 
       let extractedAddress = '';
@@ -100,10 +107,24 @@ const PopupContent: React.FC = () => {
         if (phoneMatches) {
           phoneNumbers = [...phoneNumbers, ...phoneMatches];
         }
+
+        $('a[href*=linkedin], a[href*=facebook], a[href*=twitter], a[href*=youtube]').each(function () {
+          const link = $(this).attr('href') || ''; // Ensure link is always a string
+          socialMediaLinks.push(link);
+        });
+
+        const servicesListItem = $('li:contains("Services")');
+        if (servicesListItem.length > 0) {
+          const servicesLinks = servicesListItem.find('ul a');
+          servicesLinks.each(function () {
+            const serviceName = $(this).text();
+            services.push(serviceName);
+          });
+        }
       }
     });
 
-    return { address, email, phoneNumbers };
+    return { address, email, phoneNumbers, services, socialMediaLinks };
   }
 
   // Function to generate email regex based on the website URL
@@ -119,46 +140,109 @@ const PopupContent: React.FC = () => {
     return emailPattern;
   }
 
-  function extractServices(htmlContent: string) {
-    const $ = cheerio.load(htmlContent);
-    const services: string[] = [];
-
-    // Find the <li> element containing "Services"
-    const servicesListItem = $('li:contains("Services")');
-    if (servicesListItem.length > 0) {
-      // Get all <a> elements under the services <ul>
-      const servicesLinks = servicesListItem.find('ul a');
-      servicesLinks.each(function () {
-        const serviceName = $(this).text();
-        services.push(serviceName);
-      });
-    }
-
-    return services;
-  }
-
-  function extractSocialMediaLinks(htmlContent: string) {
-    const $ = cheerio.load(htmlContent);
-    const contacts: string[] = [];
-    $('a[href*=linkedin], a[href*=facebook], a[href*=twitter], a[href*=youtube]').each(function () {
-      const link = $(this).attr('href') || ''; // Ensure link is always a string
-      contacts.push(link);
-    });
-    return contacts;
-  }
-
   return (
-    <form 
-      method="POST"
-      action="https://script.google.com/macros/s/AKfycbwuWEPL-138qfrabrDDqqGen47ZY-hp5fQYkX3FY_YOMwblM-7BlbuiZXjsXKpXgbD0/exec"
-    >
-      <input name="Address" type="text" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Address" required />
-      <input name="Emails" type="text" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Emails" required />
-      <input name="Phone Numbers" type="text" value={phoneNumbers.join(',')} onChange={(e) => setPhoneNumbers(e.target.value.split(','))} placeholder="Phone Numbers" required />
-      <input name="Social Media Links" type="text" value={socialMediaLinks.join(',')} onChange={(e) => setSocialMediaLinks(e.target.value.split(','))} placeholder="Social Media Links" required />
-      <input name="Services" type="text" value={services.join(',')} onChange={(e) => setServices(e.target.value.split(','))} placeholder="Services" required />
-      <button type="submit">Send</button>
-    </form>
+    <div>
+      {!showData && (
+        <button
+          onClick={handleClickScrape}
+          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+        >
+          Scrape
+        </button>
+      )}
+
+      {showData && (
+        <form
+          className="max-w-xl mx-auto mt-8"
+          method="POST"
+          action="https://script.google.com/macros/s/AKfycbwuWEPL-138qfrabrDDqqGen47ZY-hp5fQYkX3FY_YOMwblM-7BlbuiZXjsXKpXgbD0/exec"
+        >
+          <div className="mb-4">
+            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="address">
+              Address
+            </label>
+            <input
+              name="Address"
+              id="address"
+              type="text"
+              value={scrapedData.address}
+              onChange={(e) => setScrapedData({ ...scrapedData, address: e.target.value })}
+              placeholder="Enter address"
+              required
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">
+              Email
+            </label>
+            <input
+              name="Emails"
+              id="email"
+              type="text"
+              value={scrapedData.email}
+              onChange={(e) => setScrapedData({ ...scrapedData, email: e.target.value })}
+              placeholder="Enter email"
+              required
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="phoneNumbers">
+              Phone Numbers
+            </label>
+            <input
+              name="Phone Numbers"
+              id="phoneNumbers"
+              type="text"
+              value={scrapedData.phoneNumbers.join(',')}
+              onChange={(e) => setScrapedData({ ...scrapedData, phoneNumbers: e.target.value.split(',') })}
+              placeholder="Enter phone numbers"
+              required
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="socialMediaLinks">
+              Social Media Links
+            </label>
+            <input
+              name="Social Media Links"
+              id="socialMediaLinks"
+              type="text"
+              value={scrapedData.socialMediaLinks.join(',')}
+              onChange={(e) => setScrapedData({ ...scrapedData, socialMediaLinks: e.target.value.split(',') })}
+              placeholder="Enter social media links"
+              required
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="services">
+              Services
+            </label>
+            <input
+              name="Services"
+              id="services"
+              type="text"
+              value={scrapedData.services.join(',')}
+              onChange={(e) => setScrapedData({ ...scrapedData, services: e.target.value.split(',') })}
+              placeholder="Enter services"
+              required
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <button
+              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+              type="submit"
+            >
+              Send
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 };
 
