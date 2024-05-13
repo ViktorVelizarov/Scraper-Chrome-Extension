@@ -56,26 +56,26 @@ const PopupContent: React.FC = () => {
   function extractContactInfo(htmlContent: string, url: string) {
     const $ = cheerio.load(htmlContent);
     const addressElement = $('address');
-
+  
     let address = '';
     let email = '';
     let phoneNumbers: string[] = [];
     let socialMediaLinks: string[] = [];
     let services: string[] = [];
-
+  
     // Check if there's any address element found
     if (addressElement.length > 0) {
       const addressText = addressElement.text(); // Extract text from the address element
-
+  
       // Define patterns commonly found in addresses
       const addressPatterns = [
         /\b\d+\s+\w+\s+\w+/gi, // Street address pattern (e.g., 123 Main St)
         /\b\w+\s*,\s*\w+\s*\d+/gi, // City, Postal Code pattern (e.g., City, Postal Code)
         /\b[A-Za-z\s]+,\s*[A-Za-z\s]+/gi, // City, Country pattern (e.g., City, Country)
       ];
-
+  
       let extractedAddress = '';
-
+  
       // Search for each pattern in the address text
       for (const pattern of addressPatterns) {
         const matches = addressText.match(pattern);
@@ -84,49 +84,54 @@ const PopupContent: React.FC = () => {
           extractedAddress += '\n'; // Add a line break
         }
       }
-
+  
       // Trim and return the extracted address
       address = extractedAddress.trim();
     }
-
+  
     // Generate email regex based on the website URL
     const emailPattern = generateEmailRegex(url);
-
+  
     // Iterate over all text nodes to search for potential email addresses and phone numbers
     $('*').contents().each((index, element) => {
       if (element.type === 'text') {
         const text = $(element).text();
-
+  
         const matches = text.match(emailPattern);
         if (matches) {
           email = matches.join(', '); // Concatenate matches with a comma
         }
-
+  
         const phonePattern = /\b\d{3}\s\d{3}\s\d{4}\b/g;
         const phoneMatches = text.match(phonePattern);
         if (phoneMatches) {
           phoneNumbers = [...phoneNumbers, ...phoneMatches];
         }
-
+  
         $('a[href*=linkedin], a[href*=facebook], a[href*=twitter], a[href*=youtube]').each(function () {
           const link = $(this).attr('href') || ''; // Ensure link is always a string
           socialMediaLinks.push(link);
         });
-
+  
         const servicesListItem = $('li:contains("Services")');
         if (servicesListItem.length > 0) {
           const servicesLinks = servicesListItem.find('ul a');
           servicesLinks.each(function () {
             const serviceName = $(this).text();
-            services.push(serviceName);
+            if (!services.includes(serviceName)) { // Check if service already exists to prevent duplicates
+              services.push(serviceName);
+            }
           });
         }
       }
     });
-
+  
+    // Remove duplicate social media links
+    socialMediaLinks = Array.from(new Set(socialMediaLinks));
+  
     return { address, email, phoneNumbers, services, socialMediaLinks };
   }
-
+  
   // Function to generate email regex based on the website URL
   function generateEmailRegex(url: string) {
     // Extract domain from URL
